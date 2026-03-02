@@ -1,0 +1,8 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(python:*)",
+      "Bash(\"D:/development-environments/ml-compat-3.12/Scripts/python.exe\":*)"
+    ]
+  }
+}
