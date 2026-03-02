@@ -65,9 +65,6 @@ def validate_rfc1918(ip: str) -> bool:
     Returns:
         True if the IP is in RFC1918 range, False otherwise.
     """
-    # BUG: Only validates octets 1-2 for RFC1918 range membership, but does not
-    # validate octets 3-4 are in 0-255. The regex allows \d{1,3} which can match
-    # values like 999. Fix: add `all(0 <= int(o) <= 255 for o in octets)` check.
     try:
         octets = ip.split(".")
         if len(octets) != 4:
@@ -75,19 +72,23 @@ def validate_rfc1918(ip: str) -> bool:
 
         first = int(octets[0])
         second = int(octets[1])
-        
+
+        # Validate all octets are in valid range (0-255)
+        if not all(0 <= int(o) <= 255 for o in octets):
+            return False
+
         # 10.0.0.0/8
         if first == 10:
             return True
-        
+
         # 172.16.0.0/12 (172.16.0.0 - 172.31.255.255)
         if first == 172 and 16 <= second <= 31:
             return True
-        
+
         # 192.168.0.0/16
         if first == 192 and second == 168:
             return True
-        
+
         return False
     except (ValueError, IndexError):
         return False

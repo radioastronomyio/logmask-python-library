@@ -64,29 +64,44 @@ CSV with columns: `identifier_type`, `original_value`, `anonymized_value`, `scop
 
 Bugs documented inline in source. Fix before production use.
 
-**🔴 `Replacer.reveal_text()` corrupts forward automaton** (`replacer.py`)
-- `reveal_text()` overwrites `self._automaton` with the inverted mapping
-- Any subsequent `replace_text()` on the same Replacer instance silently uses the wrong mapping
-- The module-level convenience functions (`anonymize_text()`, `reveal_text()`) are stateless and unaffected
-- Fix: use a local automaton variable in `reveal_text()`, or store forward/reverse automatons separately
+### Fixed (uncommitted — applied by OpenCode/GLM-4.7)
 
-**🟡 `validate_rfc1918` doesn't validate octets 3-4** (`parsers/ipv4.py`)
-- Regex allows `\d{1,3}` which can match values > 255 (e.g., `10.0.999.999`)
-- Fix: add `all(0 <= int(o) <= 255 for o in octets)` check
+**~~🔴 `Replacer.reveal_text()` corrupts forward automaton~~** (`replacer.py`)
+- Fixed: `reveal_text()` now uses a local automaton variable, preserving `self._automaton` state
 
-**🟡 Dead code block in `parse_upn()`** (`parsers/identity.py`)
-- The `domain in public_domains and local_part in generic_local_parts` block is unreachable
-- The `domain in public_domains` check above it already `continue`s
-- Fix: delete the dead block
+**~~🟡 `validate_rfc1918` doesn't validate octets 3-4~~** (`parsers/ipv4.py`)
+- Fixed: added `all(0 <= int(o) <= 255 for o in octets)` check
+
+**~~🟡 Dead code block in `parse_upn()`~~** (`parsers/identity.py`)
+- Fixed: unreachable `generic_local_parts` block removed
+
+### Open
+
+**🔴 `_generate_fake_ipv4` collision check is wrong** (`map_engine.py`)
+- Compares `fake_ip` against merged map *keys* (original values) instead of *anonymized* values
+- Also: `merge_maps()` reads CSV from disk on every call — redundant I/O when generating multiple IPs
+
+**🟡 `_generate_fake_hostname` domain suffix leakage** (`map_engine.py`)
+- FQDN anonymization only replaces the first label; real domain suffix passes through unchanged
+- Leaks real domain name into anonymized output
+
+**🟡 `scope` parameter unused in `generate_fake_value`** (`map_engine.py`)
+- Accepted but never threaded through to generation methods
+
+**🟡 Inconsistent lazy-loading in `replace_text` vs `reveal_text`** (`replacer.py`)
+- `replace_text()` auto-loads map if automaton is None; `reveal_text()` always reloads from disk
 
 **🟡 `test_roundtrip_file` fragile path dependency** (`tests/test_roundtrip.py`)
 - Uses `sample_config` which points at `~/.logmask/` — may pass for wrong reasons if CSVs exist there
-- The map scope tests demonstrate the correct pattern: use temp paths with explicit CSV files
 - Fix: rewrite to match `TestRoundTripWithMapScopes` pattern
 
 **🟢 Inline imports in `handle_anonymize()` and `handle_reveal()`** (`cli.py`)
 - `from logmask.map_engine import load_merged_map` imported at function scope, not module top
 - Functional but inconsistent
+
+**🟢 No test coverage: scanner.py** — Scanner class, `_filter_contained_hostnames()`, extension filtering
+
+**🟢 No test coverage: cli.py** — all handler functions untested
 
 ## Test Coverage
 

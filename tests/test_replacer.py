@@ -335,6 +335,42 @@ hostname,SQL-PROD-03,SRV-ALPHA-42,project,true
         assert "10.0.187.22" not in revealed
         assert "SRV-ALPHA-42" not in revealed
 
+    def test_reveal_text_preserves_forward_automaton(self, sample_config: Config) -> None:
+        """Test that reveal_text() does not corrupt the forward automaton."""
+        # Create mapping
+        mapping = {
+            "10.0.1.50": "10.0.187.22",
+            "SQL-PROD-03": "SRV-ALPHA-42",
+        }
+
+        # Create project map for reveal
+        project_map_path = sample_config.project_map_path
+        project_map_path.parent.mkdir(parents=True, exist_ok=True)
+
+        csv_content = """identifier_type,original_value,anonymized_value,scope,preserve_format
+ipv4,10.0.1.50,10.0.187.22,project,true
+hostname,SQL-PROD-03,SRV-ALPHA-42,project,true
+"""
+        project_map_path.write_text(csv_content)
+
+        replacer = Replacer(sample_config)
+        replacer.build_automaton(mapping)
+
+        # First: anonymize text
+        text = "Connection from 10.0.1.50 to SQL-PROD-03"
+        first_anonymized = replacer.replace_text(text)
+
+        # Second: reveal text
+        revealed = replacer.reveal_text(first_anonymized)
+
+        # Third: anonymize again on the same instance
+        second_anonymized = replacer.replace_text(text)
+
+        # Assert that second anonymization matches the first (forward automaton not corrupted)
+        assert second_anonymized == first_anonymized
+        assert "10.0.187.22" in second_anonymized
+        assert "SRV-ALPHA-42" in second_anonymized
+
     def test_reveal_file(self, sample_config: Config, temp_directory: Path) -> None:
         """Test revealing original values in a file."""
         # Create project map

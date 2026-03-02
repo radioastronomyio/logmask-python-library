@@ -65,9 +65,26 @@ class TestIPv4Parser:
         """Test that IPv4 parser does not match IP-like strings in timestamps."""
         text = "2025-03-01 10:15:23 INFO Connection established"
         identifiers = ipv4.parse(text, sample_config)
-        
+
         # Should not match 10:15:23 as an IP address
         assert len(identifiers) == 0, f"Expected no matches in timestamp, found {len(identifiers)}"
+
+    def test_ipv4_octet_range_validation(self, sample_config: Config) -> None:
+        """Test that IPv4 parser rejects invalid octets (> 255)."""
+        # Invalid IP with octets > 255
+        text_invalid = "Connection from 10.0.999.999"
+        identifiers_invalid = ipv4.parse(text_invalid, sample_config)
+
+        # Should not match invalid octets
+        assert len(identifiers_invalid) == 0, f"Expected no matches for invalid octets, found {len(identifiers_invalid)}"
+
+        # Valid IP should still be detected
+        text_valid = "Connection from 10.0.1.50"
+        identifiers_valid = ipv4.parse(text_valid, sample_config)
+
+        # Should detect valid IP
+        assert len(identifiers_valid) == 1, f"Expected 1 match for valid IP, found {len(identifiers_valid)}"
+        assert identifiers_valid[0].value == "10.0.1.50"
 
 
 class TestCIDRParser:

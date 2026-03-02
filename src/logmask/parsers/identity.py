@@ -92,15 +92,6 @@ def parse_upn(text: str) -> list[DetectedIdentifier]:
             if domain in public_domains:
                 continue
 
-            # BUG: Dead code — the check below is unreachable because the
-            # `continue` on line above already exits the loop iteration when
-            # `domain in public_domains`. This block was intended to skip
-            # generic local parts only for public domains, but the broader
-            # public domain filter above already handles that case.
-            # Fix: Remove this dead block entirely.
-            if domain in public_domains and local_part in generic_local_parts:
-                continue
-        
         identifiers.append(
             DetectedIdentifier(
                 value=upn,

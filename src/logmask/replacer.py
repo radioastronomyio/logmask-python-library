@@ -131,25 +131,20 @@ class Replacer:
         Returns:
             Text with original values restored.
         """
-        # BUG: reveal_text() overwrites self._automaton with the inverted mapping,
-        # corrupting the forward automaton. After calling reveal_text(), any subsequent
-        # call to replace_text() will use the inverted (reveal) mapping instead of the
-        # forward (anonymize) mapping. Fix: use a local automaton variable instead of
-        # self._automaton, or store forward and reverse automatons separately.
-        # [Agent context: This is the highest-priority bug in this module. The Replacer
-        # class is stateful via self._automaton. reveal_text mutates that state. Any
-        # test or workflow that calls replace_text after reveal_text on the same instance
-        # will silently produce wrong output.]
+        # Design choice: Use a local automaton variable for reveal operations
+        # to avoid corrupting the forward automaton state stored in self._automaton.
+        # This ensures replace_text() and reveal_text() can be called in any
+        # order on the same Replacer instance without unexpected behavior.
 
         # Load merged map and invert it (swap keys and values)
         mapping = load_merged_map(self.config)
         inverted_mapping = {v: k for k, v in mapping.items()}
 
-        # Build automaton from inverted mapping
-        self.build_automaton(inverted_mapping)
+        # Build local automaton from inverted mapping (does not modify self._automaton)
+        reveal_automaton = _build_automaton(inverted_mapping)
 
-        # Apply shared replacement algorithm
-        return _apply_automaton(self._automaton, text)
+        # Apply shared replacement algorithm with local automaton
+        return _apply_automaton(reveal_automaton, text)
 
     def reveal_file(self, input_path: Path, output_path: Path) -> None:
         """
