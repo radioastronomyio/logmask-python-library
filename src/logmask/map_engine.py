@@ -195,16 +195,21 @@ class MapEngine:
         else:
             raise ValueError(f"Unknown identifier type: {identifier_type}")
 
-    def _generate_fake_ipv4(self, original: str, preserve_format: bool) -> str:
+    def _generate_fake_ipv4(
+        self, original: str, preserve_format: bool, _existing_anonymized: set[str] | None = None
+    ) -> str:
         """
         Generate a fake IPv4 address.
 
         Preserves first two octets (A+B) and randomizes C+D (1-254).
-        Checks for collision with existing map entries.
+        Checks for collision with existing anonymized values.
 
         Args:
             original: Original IPv4 address.
             preserve_format: Whether to preserve first two octets.
+            _existing_anonymized: Pre-computed set of already-used anonymized values.
+                If None, loads from merged map. Pass a pre-built set when generating
+                multiple IPs to avoid redundant disk I/O.
 
         Returns:
             Fake IPv4 address.
@@ -228,25 +233,27 @@ class MapEngine:
         fake_octets = octets[:2] + [str(random.randint(1, 254)), str(random.randint(1, 254))]
         fake_ip = ".".join(fake_octets)
 
-        # BUG: Collision check compares `fake_ip` against `merged_map` keys, which are
-        # *original* values — not anonymized values. To detect collisions, it should check
-        # against the set of existing *anonymized* values. Also, the condition `fake_ip != original`
-        # allows the loop to exit when fake equals original, but MapEntry.__post_init__
-        # raises ValueError when original_value == anonymized_value.
-        # HACK: merge_maps() reads CSV from disk on every call. When generating multiple
-        # IPs, this causes redundant disk I/O. Cache the merged map or pass it in.
-        merged_map = self.merge_maps()
+        # Load existing anonymized values once; callers may pass a pre-built set to
+        # avoid repeated disk I/O when generating multiple IPs in a batch.
+        if _existing_anonymized is None:
+            merged_map = self.merge_maps()
+            _existing_anonymized = {entry.anonymized_value for entry in merged_map.values()}
+
         max_attempts = 100
         attempts = 0
 
-        while fake_ip in merged_map and fake_ip != original and attempts < max_attempts:
+        # Loop while fake_ip collides with an existing anonymized value OR equals the
+        # original (which would fail MapEntry.__post_init__ validation).
+        while (fake_ip in _existing_anonymized or fake_ip == original) and attempts < max_attempts:
             fake_octets = octets[:2] + [str(random.randint(1, 254)), str(random.randint(1, 254))]
             fake_ip = ".".join(fake_octets)
             attempts += 1
 
         return fake_ip
 
-    def _generate_fake_cidr(self, original: str, preserve_format: bool) -> str:
+    def _generate_fake_cidr(
+        self, original: str, preserve_format: bool, _existing_anonymized: set[str] | None = None
+    ) -> str:
         """
         Generate a fake CIDR notation.
 
@@ -255,6 +262,8 @@ class MapEngine:
         Args:
             original: Original CIDR notation.
             preserve_format: Whether to preserve IP class.
+            _existing_anonymized: Pre-computed set of already-used anonymized values,
+                passed through to _generate_fake_ipv4 to avoid redundant disk I/O.
 
         Returns:
             Fake CIDR notation.
@@ -265,7 +274,7 @@ class MapEngine:
             raise ValueError(f"Invalid CIDR notation: {original}")
 
         ip_part, prefix = parts
-        fake_ip = self._generate_fake_ipv4(ip_part, preserve_format)
+        fake_ip = self._generate_fake_ipv4(ip_part, preserve_format, _existing_anonymized)
         return f"{fake_ip}/{prefix}"
 
     def _generate_fake_hostname(self, original: str, preserve_format: bool) -> str:
@@ -289,17 +298,12 @@ class MapEngine:
 
         # Check if it's an FQDN (contains dots)
         if "." in original:
-            # BUG: Domain suffix leakage — only the first label is anonymized, but
-            # the real domain suffix (e.g., "contoso.local") is passed through unchanged.
-            # This leaks the real domain name into anonymized output.
-            # Fix: anonymize the domain suffix too (e.g., replace with a fake domain
-            # from DOMAIN_NAMES, or generate a deterministic fake suffix).
-            parts = original.split(".")
-            # Generate fake for first part
+            # Anonymize the first label and replace the entire domain suffix with a
+            # fake domain from DOMAIN_NAMES so the real domain never leaks through.
             word = random.choice(HOSTNAME_WORDS)
             num = random.randint(1, 99)
-            fake_parts = [f"SRV-{word}-{num:02d}"] + parts[1:]
-            return ".".join(fake_parts)
+            fake_domain = random.choice(DOMAIN_NAMES)
+            return f"SRV-{word}-{num:02d}.{fake_domain}"
         else:
             # Flat hostname
             word = random.choice(HOSTNAME_WORDS)

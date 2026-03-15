@@ -364,10 +364,11 @@ class TestFakeValueGeneration:
         assert "SRV-" in fake_flat
         assert "-" in fake_flat
 
-        # Test FQDN
+        # Test FQDN — real domain suffix must NOT appear in the fake (domain leakage fix)
         fake_fqdn = engine.generate_fake_value("hostname", "SQL-PROD-03.contoso.local", preserve_format=True)
         assert "SRV-" in fake_fqdn
-        assert ".contoso.local" in fake_fqdn
+        assert "." in fake_fqdn  # still an FQDN
+        assert "contoso.local" not in fake_fqdn  # real domain is replaced, not leaked
 
     def test_generate_fake_upn(self) -> None:
         """Test generating fake UPNs."""
