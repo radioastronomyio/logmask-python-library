@@ -1,0 +1,3 @@
+identifier_type,original_value,anonymized_value,scope,preserve_format
+ipv4,10.0.1.50,10.0.187.22,project,true
+hostname,SQL-PROD-03,SRV-ALPHA-42,project,true
